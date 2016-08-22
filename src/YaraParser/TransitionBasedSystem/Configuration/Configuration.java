@@ -19,18 +19,26 @@ public class Configuration implements Comparable, Cloneable, Serializable {
 
     public float score;
 
-    public Configuration(Sentence sentence, boolean rootFirst) {
+    private String langID;
+
+    public Configuration(Sentence sentence, boolean rootFirst, String langID) {
         this.sentence = sentence;
         state = new State(sentence.size(), rootFirst);
         score = (float) 0.0;
         actionHistory = new ArrayList<Integer>(2 * (sentence.size() + 1));
+        this.langID = langID;
     }
 
-    public Configuration(Sentence sentence) {
+    public Configuration(Sentence sentence, String langID) {
         this.sentence = sentence;
         state = new State(sentence.size());
         score = (float) 0.0;
         actionHistory = new ArrayList<Integer>(2 * (sentence.size() + 1));
+        this.langID = langID;
+    }
+
+    public String getLanguageID() {
+        return langID;
     }
 
     /**
@@ -92,7 +100,7 @@ public class Configuration implements Comparable, Cloneable, Serializable {
 
     @Override
     public Configuration clone() {
-        Configuration configuration = new Configuration(sentence);
+        Configuration configuration = new Configuration(sentence, langID);
 
         ArrayList<Integer> history = new ArrayList<Integer>(actionHistory.size());
         for (int i = 0; i < actionHistory.size(); i++)

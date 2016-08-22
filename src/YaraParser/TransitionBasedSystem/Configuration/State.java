@@ -86,7 +86,7 @@ public class State implements Cloneable {
     public void addArc(int dependent, int head, int dependency) {
         arcs[dependent] = new Pair<Integer, Integer>(head, dependency);
         long value = 1L << (dependency);
-        
+
         assert dependency<64;
 
         if (dependent > head) { //right dep
@@ -175,7 +175,7 @@ public class State implements Cloneable {
     public int secondRightMostModifier(int index) {
         return (secondRightMostArcs[index] == 0 ? -1 : secondRightMostArcs[index]);
     }
-    
+
     public int leftMostModifier(int index) {
         return (leftMostArcs[index] == 0 ? -1 : leftMostArcs[index]);
     }

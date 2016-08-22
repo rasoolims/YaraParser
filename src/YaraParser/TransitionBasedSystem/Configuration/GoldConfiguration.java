@@ -18,8 +18,10 @@ public class GoldConfiguration {
     protected HashMap<Integer, Pair<Integer, Integer>> goldDependencies;
     protected HashMap<Integer, HashSet<Integer>> reversedDependencies;
     protected Sentence sentence;
+    protected String languageId;
+    private int updateWeight;
 
-    public GoldConfiguration(Sentence sentence, HashMap<Integer, Pair<Integer, Integer>> goldDependencies) {
+    public GoldConfiguration(Sentence sentence, HashMap<Integer, Pair<Integer, Integer>> goldDependencies, int updateWeight, String languageId) {
         this.goldDependencies = new HashMap<Integer, Pair<Integer, Integer>>();
         reversedDependencies = new HashMap<Integer, HashSet<Integer>>();
         for (int head : goldDependencies.keySet())
@@ -31,6 +33,8 @@ public class GoldConfiguration {
             reversedDependencies.get(head).add(dependent);
         }
         this.sentence = sentence;
+        this.updateWeight = updateWeight;
+        this.languageId = languageId;
     }
 
 
@@ -168,5 +172,13 @@ public class GoldConfiguration {
                 }
         }
         return cost;
+    }
+
+    public int getUpdateWeight() {
+        return updateWeight;
+    }
+
+    public String getLanguageId() {
+        return languageId;
     }
 }

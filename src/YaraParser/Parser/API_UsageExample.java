@@ -30,7 +30,8 @@ public class API_UsageExample {
         String[] words = {"I", "am", "here", "."};
         String[] tags = {"PRP", "VBP", "RB", "."};
 
-        Configuration bestParse = parser.parse(maps.makeSentence(words, tags, infStruct.options.rootFirst, infStruct.options.lowercase), infStruct.options.rootFirst, infStruct.options.beamWidth, numOfThreads);
+        Configuration bestParse = parser.parse(maps.makeSentence(words, words, tags, infStruct.options.rootFirst, infStruct.options.lowercase),
+                infStruct.options.rootFirst, infStruct.options.beamWidth, numOfThreads, "");
         if (infStruct.options.rootFirst) {
             for (int i = 0; i < words.length; i++) {
                 System.out.println(words[i] + "\t" + tags[i] + "\t" + bestParse.state.getHead(i + 1) + "\t" + maps.revWords[bestParse.state.getDependency(i + 1)]);

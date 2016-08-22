@@ -27,6 +27,9 @@ public class Options implements Serializable {
     public boolean parsePartialConll;
     public String scorePath;
     public String clusterFile;
+    public String clusterInDomainFile;
+    public String targetLangId = "";
+    public String langIDFilePath = "";
 
     public String modelFile;
     public boolean lowercase;
@@ -51,14 +54,17 @@ public class Options implements Serializable {
         parseConllFile = false;
         parseTaggedFile = false;
         beamWidth = 64;
+        targetLangId = "";
         rootFirst = false;
         modelFile = "";
         outputFile = "";
         inputFile = "";
         devPath = "";
         scorePath = "";
+        langIDFilePath = "";
         separator = "_";
         clusterFile = "";
+        clusterInDomainFile = "";
         labeled = true;
         lowercase = false;
         useExtendedFeatures = true;
@@ -122,7 +128,11 @@ public class Options implements Serializable {
         output.append("\t** The model for each iteration is with the pattern [model-file]_iter[iter#]; e.g. mode_iter2\n");
         output.append("\t** [punc-file]: File contains list of pos tags for punctuations in the treebank, each in one line\n");
         output.append("\t** Other options\n");
+        output.append("\t\t  -info Language ID information\n");
         output.append("\t \t -cluster [cluster-file] Brown cluster file: at most 4096 clusters are supported by the parser (default: empty)\n\t\t\t the format should be the same as https://github.com/percyliang/brown-cluster/blob/master/output.txt \n");
+        output.append("\t \t -cluster_id [lang-specific-cluster-file] Brown cluster file: at most 4096 clusters are supported by the parser " +
+                "(default: empty)\n\t\t\t the format should be the same as https://github.com/percyliang/brown-cluster/blob/master/output.txt \n");
+        output.append("\t \t -target [target_lang_id]");
         output.append("\t \t beam:[beam-width] (default:64)\n");
         output.append("\t \t iter:[training-iterations] (default:20)\n");
         output.append("\t \t unlabeled (default: labeled parsing, unless explicitly put `unlabeled')\n");
@@ -180,17 +190,24 @@ public class Options implements Serializable {
                 options.changePunc(args[i + 1]);
             else if (args[i].equals("-model"))
                 options.modelFile = args[i + 1];
+            else if (args[i].equals("-info"))
+                options.langIDFilePath = args[i + 1];
             else if (args[i].startsWith("-dev"))
                 options.devPath = args[i + 1];
             else if (args[i].equals("-gold"))
                 options.goldFile = args[i + 1];
             else if (args[i].startsWith("-parse"))
                 options.predFile = args[i + 1];
-            else if (args[i].startsWith("-cluster")) {
+            else if (args[i].equals("-cluster")) {
                 options.clusterFile = args[i + 1];
+                options.useExtendedWithBrownClusterFeatures = true;
+            } else if (args[i].equals("-cluster_id")) {
+                options.clusterInDomainFile = args[i + 1];
                 options.useExtendedWithBrownClusterFeatures = true;
             } else if (args[i].startsWith("-out"))
                 options.outputFile = args[i + 1];
+            else if (args[i].startsWith("-target"))
+                options.targetLangId = args[i + 1];
             else if (args[i].startsWith("-delim"))
                 options.separator = args[i + 1];
             else if (args[i].startsWith("beam:"))
@@ -357,6 +374,7 @@ public class Options implements Serializable {
             builder.append("training-iterations: " + trainingIter + "\n");
             builder.append("number of threads: " + numOfThreads + "\n");
             builder.append("partial training starting iteration: " + partialTrainingStartingIteration + "\n");
+            builder.append("target_lang: " + targetLangId + "\n");
             return builder.toString();
         } else if (parseConllFile) {
             StringBuilder builder = new StringBuilder();

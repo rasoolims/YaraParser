@@ -121,7 +121,6 @@ public class PartialTreeBeamScorerThread implements Callable<ArrayList<BeamEleme
                 }
             }
         }
-
         return elements;
     }
 }

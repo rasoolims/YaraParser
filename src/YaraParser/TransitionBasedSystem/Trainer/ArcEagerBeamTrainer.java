@@ -40,17 +40,18 @@ public class ArcEagerBeamTrainer {
      */
     private String updateMode;
     private AveragedPerceptron classifier;
-   
+
     private ArrayList<Integer> dependencyRelations;
     private int featureLength;
 
-    private Random randGen;
+    private static Random randGen;
     private IndexMaps maps;
+    private static String targetLangId = "";
 
     public ArcEagerBeamTrainer(String updateMode, AveragedPerceptron classifier, Options options,
                                ArrayList<Integer> dependencyRelations,
                                int featureLength
-            , IndexMaps maps) {
+            , IndexMaps maps, String targetLangId) {
         this.updateMode = updateMode;
         this.classifier = classifier;
         this.options = options;
@@ -58,6 +59,92 @@ public class ArcEagerBeamTrainer {
         this.featureLength = featureLength;
         randGen = new Random();
         this.maps = maps;
+        this.targetLangId = targetLangId;
+    }
+
+    private Configuration zeroCostDynamicOracle(GoldConfiguration goldConfiguration, HashMap<Configuration, Float> oracles, HashMap<Configuration,
+            Float> newOracles) throws Exception {
+        float bestScore = Float.NEGATIVE_INFINITY;
+        Configuration bestScoringOracle = null;
+
+        for (Configuration configuration : oracles.keySet()) {
+            if (!configuration.state.isTerminalState()) {
+                State currentState = configuration.state;
+                Object[] features = FeatureExtractor.extractAllParseFeatures(configuration, featureLength);
+                int accepted = 0;
+                // I only assumed that we need zero cost ones
+                if (goldConfiguration.actionCost(Actions.Shift, -1, currentState) == 0) {
+                    Configuration newConfig = configuration.clone();
+                    float score = classifier.shiftScore(features, false);
+                    ArcEager.shift(newConfig.state);
+                    newConfig.addAction(0);
+                    newConfig.addScore(score);
+                    newOracles.put(newConfig, (float) 0);
+
+                    if (newConfig.getScore(true) > bestScore) {
+                        bestScore = newConfig.getScore(true);
+                        bestScoringOracle = newConfig;
+                    }
+                    accepted++;
+                }
+                if (ArcEager.canDo(Actions.RightArc, currentState)) {
+                    float[] rightArcScores = classifier.rightArcScores(features, false);
+                    for (int dependency : dependencyRelations) {
+                        if (goldConfiguration.actionCost(Actions.RightArc, dependency, currentState) == 0) {
+                            Configuration newConfig = configuration.clone();
+                            float score = rightArcScores[dependency];
+                            ArcEager.rightArc(newConfig.state, dependency);
+                            newConfig.addAction(3 + dependency);
+                            newConfig.addScore(score);
+                            newOracles.put(newConfig, (float) 0);
+
+                            if (newConfig.getScore(true) > bestScore) {
+                                bestScore = newConfig.getScore(true);
+                                bestScoringOracle = newConfig;
+                            }
+                            accepted++;
+                        }
+                    }
+                }
+                if (ArcEager.canDo(Actions.LeftArc, currentState)) {
+                    float[] leftArcScores = classifier.leftArcScores(features, false);
+                    for (int dependency : dependencyRelations) {
+                        if (goldConfiguration.actionCost(Actions.LeftArc, dependency, currentState) == 0) {
+                            Configuration newConfig = configuration.clone();
+                            float score = leftArcScores[dependency];
+                            ArcEager.leftArc(newConfig.state, dependency);
+                            newConfig.addAction(3 + dependencyRelations.size() + dependency);
+                            newConfig.addScore(score);
+                            newOracles.put(newConfig, (float) 0);
+
+                            if (newConfig.getScore(true) > bestScore) {
+                                bestScore = newConfig.getScore(true);
+                                bestScoringOracle = newConfig;
+                            }
+                            accepted++;
+                        }
+                    }
+                }
+                if (goldConfiguration.actionCost(Actions.Reduce, -1, currentState) == 0) {
+                    Configuration newConfig = configuration.clone();
+                    float score = classifier.reduceScore(features, false);
+                    ArcEager.reduce(newConfig.state);
+                    newConfig.addAction(1);
+                    newConfig.addScore(score);
+                    newOracles.put(newConfig, (float) 0);
+
+                    if (newConfig.getScore(true) > bestScore) {
+                        bestScore = newConfig.getScore(true);
+                        bestScoringOracle = newConfig;
+                    }
+                    accepted++;
+                }
+            } else {
+                newOracles.put(configuration, oracles.get(configuration));
+            }
+        }
+
+        return bestScoringOracle;
     }
 
     public void train(ArrayList<GoldConfiguration> trainData, String devPath, int maxIteration, String modelPath, boolean lowerCased, HashSet<String> punctuations, int partialTreeIter) throws Exception {
@@ -67,8 +154,8 @@ public class ArcEagerBeamTrainer {
         ExecutorService executor = Executors.newFixedThreadPool(options.numOfThreads);
         CompletionService<ArrayList<BeamElement>> pool = new ExecutorCompletionService<ArrayList<BeamElement>>(executor);
 
-
         for (int i = 1; i <= maxIteration; i++) {
+            Collections.shuffle(trainData);
             long start = System.currentTimeMillis();
 
             int dataCount = 0;
@@ -78,19 +165,22 @@ public class ArcEagerBeamTrainer {
                 if (dataCount % 1000 == 0)
                     System.out.print(dataCount + "...");
                 trainOnOneSample(goldConfiguration, partialTreeIter, i, dataCount, pool);
-
                 classifier.incrementIteration();
             }
             System.out.print("\n");
             long end = System.currentTimeMillis();
             long timeSec = (end - start) / 1000;
-            System.out.println("iteration "+i+" took " + timeSec + " seconds\n");
+            System.out.println("iteration " + i + " took " + timeSec + " seconds\n");
 
-            System.out.print("saving the model...");
+
             InfStruct infStruct = new InfStruct(classifier, maps, dependencyRelations, options);
-            infStruct.saveModel(modelPath + "_iter" + i);
-
-            System.out.println("done\n");
+            if (i == maxIteration) {
+                System.out.print("saving the model...");
+                infStruct.saveModel(modelPath);
+                System.out.println("done\n");
+            } else {
+                System.out.println("");
+            }
 
             if (!devPath.equals("")) {
                 AveragedPerceptron averagedPerceptron = new AveragedPerceptron(infStruct);
@@ -129,7 +219,7 @@ public class ArcEagerBeamTrainer {
 
         Sentence sentence = goldConfiguration.getSentence();
 
-        Configuration initialConfiguration = new Configuration(goldConfiguration.getSentence(), options.rootFirst);
+        Configuration initialConfiguration = new Configuration(goldConfiguration.getSentence(), options.rootFirst, goldConfiguration.getLanguageId());
         Configuration firstOracle = initialConfiguration.clone();
         ArrayList<Configuration> beam = new ArrayList<Configuration>(options.beamWidth);
         beam.add(initialConfiguration);
@@ -177,13 +267,12 @@ public class ArcEagerBeamTrainer {
             oracles = newOracles;
 
             TreeSet<BeamElement> beamPreserver = new TreeSet<BeamElement>();
-
             if (options.numOfThreads == 1 || beam.size() == 1) {
-                beamSortOneThread(beam, beamPreserver, sentence);
+                beamSortOneThread(beam, beamPreserver);
             } else {
                 for (int b = 0; b < beam.size(); b++) {
                     pool.submit(new BeamScorerThread(false, classifier, beam.get(b),
-                            dependencyRelations, featureLength, b, options.rootFirst));
+                            dependencyRelations, featureLength, b, options.rootFirst, maps));
                 }
                 for (int b = 0; b < beam.size(); b++) {
                     for (BeamElement element : pool.take().get()) {
@@ -271,7 +360,7 @@ public class ArcEagerBeamTrainer {
 
         // updating weights
         if (!oracleInBeam || !bestScoringOracle.equals(beam.get(0))) {
-            updateWeights(initialConfiguration, maxViol, isPartial, bestScoringOracle, maxViolPair, beam);
+            updateWeights(goldConfiguration, initialConfiguration, maxViol, isPartial, bestScoringOracle, maxViolPair, beam);
         }
     }
 
@@ -290,10 +379,8 @@ public class ArcEagerBeamTrainer {
                 top = state.peek();
             if (!state.bufferEmpty())
                 first = state.bufferHead();
-
             if (!configuration.state.isTerminalState()) {
                 Configuration newConfig = configuration.clone();
-
                 if (first > 0 && goldDependencies.containsKey(first) && goldDependencies.get(first).first == top) {
                     int dependency = goldDependencies.get(first).second;
                     float[] scores = classifier.rightArcScores(features, false);
@@ -335,7 +422,7 @@ public class ArcEagerBeamTrainer {
                     newConfig.addAction(1);
                     newConfig.addScore(score);
                 } else {
-                    float score = classifier.shiftScore(features, true);
+                    float score = classifier.shiftScore(features, false);
                     ArcEager.shift(newConfig.state);
                     newConfig.addAction(0);
                     newConfig.addScore(score);
@@ -349,92 +436,7 @@ public class ArcEagerBeamTrainer {
         return bestScoringOracle;
     }
 
-    private Configuration zeroCostDynamicOracle(GoldConfiguration goldConfiguration, HashMap<Configuration, Float> oracles, HashMap<Configuration, Float> newOracles) throws Exception {
-        float bestScore = Float.NEGATIVE_INFINITY;
-        Configuration bestScoringOracle = null;
-
-        for (Configuration configuration : oracles.keySet()) {
-            if (!configuration.state.isTerminalState()) {
-                State currentState = configuration.state;
-                Object[] features = FeatureExtractor.extractAllParseFeatures(configuration, featureLength);
-                int accepted = 0;
-                // I only assumed that we need zero cost ones
-                if (goldConfiguration.actionCost(Actions.Shift, -1, currentState) == 0) {
-                    Configuration newConfig = configuration.clone();
-                    float score = classifier.shiftScore(features, false);
-                    ArcEager.shift(newConfig.state);
-                    newConfig.addAction(0);
-                    newConfig.addScore(score);
-                    newOracles.put(newConfig, (float) 0);
-
-                    if (newConfig.getScore(true) > bestScore) {
-                        bestScore = newConfig.getScore(true);
-                        bestScoringOracle = newConfig;
-                    }
-                    accepted++;
-                }
-                if (ArcEager.canDo(Actions.RightArc, currentState)) {
-                    float[] rightArcScores = classifier.rightArcScores(features, false);
-                    for (int dependency : dependencyRelations) {
-                        if (goldConfiguration.actionCost(Actions.RightArc, dependency, currentState) == 0) {
-                            Configuration newConfig = configuration.clone();
-                            float score = rightArcScores[dependency];
-                            ArcEager.rightArc(newConfig.state, dependency);
-                            newConfig.addAction(3 + dependency);
-                            newConfig.addScore(score);
-                            newOracles.put(newConfig, (float) 0);
-
-                            if (newConfig.getScore(true) > bestScore) {
-                                bestScore = newConfig.getScore(true);
-                                bestScoringOracle = newConfig;
-                            }
-                            accepted++;
-                        }
-                    }
-                }
-                if (ArcEager.canDo(Actions.LeftArc, currentState)) {
-                    float[] leftArcScores = classifier.leftArcScores(features, false);
-
-                    for (int dependency : dependencyRelations) {
-                        if (goldConfiguration.actionCost(Actions.LeftArc, dependency, currentState) == 0) {
-                            Configuration newConfig = configuration.clone();
-                            float score = leftArcScores[dependency];
-                            ArcEager.leftArc(newConfig.state, dependency);
-                            newConfig.addAction(3 + dependencyRelations.size() + dependency);
-                            newConfig.addScore(score);
-                            newOracles.put(newConfig, (float) 0);
-
-                            if (newConfig.getScore(true) > bestScore) {
-                                bestScore = newConfig.getScore(true);
-                                bestScoringOracle = newConfig;
-                            }
-                            accepted++;
-                        }
-                    }
-                }
-                if (goldConfiguration.actionCost(Actions.Reduce, -1, currentState) == 0) {
-                    Configuration newConfig = configuration.clone();
-                    float score = classifier.reduceScore(features, false);
-                    ArcEager.reduce(newConfig.state);
-                    newConfig.addAction(1);
-                    newConfig.addScore(score);
-                    newOracles.put(newConfig, (float) 0);
-
-                    if (newConfig.getScore(true) > bestScore) {
-                        bestScore = newConfig.getScore(true);
-                        bestScoringOracle = newConfig;
-                    }
-                    accepted++;
-                }
-            } else {
-                newOracles.put(configuration, oracles.get(configuration));
-            }
-        }
-
-        return bestScoringOracle;
-    }
-
-    private void beamSortOneThread(ArrayList<Configuration> beam, TreeSet<BeamElement> beamPreserver, Sentence sentence) throws Exception {
+    private void beamSortOneThread(ArrayList<Configuration> beam, TreeSet<BeamElement> beamPreserver) throws Exception {
         for (int b = 0; b < beam.size(); b++) {
             Configuration configuration = beam.get(b);
             State currentState = configuration.state;
@@ -487,7 +489,10 @@ public class ArcEagerBeamTrainer {
         }
     }
 
-    private void updateWeights(Configuration initialConfiguration, float maxViol, boolean isPartial, Configuration bestScoringOracle, Pair<Configuration, Configuration> maxViolPair, ArrayList<Configuration> beam) throws Exception {
+    private void updateWeights(GoldConfiguration goldConfiguration, Configuration initialConfiguration, float maxViol, boolean isPartial,
+                               Configuration bestScoringOracle, Pair<Configuration, Configuration> maxViolPair, ArrayList<Configuration> beam)
+            throws Exception {
+        int[] tags = initialConfiguration.sentence.getTags();
         Configuration predicted = null;
         Configuration finalOracle = null;
         if (!updateMode.equals("max_violation")) {
@@ -505,8 +510,8 @@ public class ArcEagerBeamTrainer {
         Object[] predictedFeatures = new Object[featureLength];
         Object[] oracleFeatures = new Object[featureLength];
         for (int f = 0; f < predictedFeatures.length; f++) {
-            oracleFeatures[f] = new HashMap<Pair<Integer, Long>, Float>();
-            predictedFeatures[f] = new HashMap<Pair<Integer, Long>, Float>();
+            oracleFeatures[f] = new HashMap<Pair<Integer, Object>, Float>();
+            predictedFeatures[f] = new HashMap<Pair<Integer, Object>, Float>();
         }
 
         Configuration predictedConfiguration = initialConfiguration.clone();
@@ -527,17 +532,33 @@ public class ArcEagerBeamTrainer {
 
             if (isTrueFeature) {   // if the made dependency is truely for the word
                 Object[] feats = FeatureExtractor.extractAllParseFeatures(oracleConfiguration, featureLength);
+
+                String dep = "";
+                String pos1 = "";
+                String pos2 = "";
+                if (action >= (3 + dependencyRelations.size())) {
+                    int dependency = action - (3 + dependencyRelations.size());
+                    dep = maps.revWords[dependency];
+                    pos2 = maps.revWords[tags[oracleConfiguration.state.peek() - 1]];
+                    pos1 = maps.revWords[tags[oracleConfiguration.state.bufferHead() - 1]];
+                } else if (action >= 3) {
+                    int dependency = action - 3;
+                    dep = maps.revWords[dependency];
+                    pos1 = maps.revWords[tags[oracleConfiguration.state.peek() - 1]];
+                    pos2 = maps.revWords[tags[oracleConfiguration.state.bufferHead() - 1]];
+                }
+
                 for (int f = 0; f < feats.length; f++) {
                     Pair<Integer, Object> featName = new Pair<Integer, Object>(action, feats[f]);
                     HashMap<Pair<Integer, Object>, Float> map = (HashMap<Pair<Integer, Object>, Float>) oracleFeatures[f];
                     Float value = map.get(featName);
+
                     if (value == null)
                         map.put(featName, 1.0f);
                     else
                         map.put(featName, value + 1);
                 }
             }
-
             if (action == 0) {
                 ArcEager.shift(oracleConfiguration.state);
             } else if (action == 1) {
@@ -554,7 +575,8 @@ public class ArcEagerBeamTrainer {
         for (int action : predicted.actionHistory) {
             boolean isTrueFeature = true;
             if (isPartial && action >= 3) {
-                if (!predictedConfiguration.state.hasHead(predictedConfiguration.state.peek()) || !predictedConfiguration.state.hasHead(predictedConfiguration.state.bufferHead()))
+                if (!predictedConfiguration.state.hasHead(predictedConfiguration.state.peek())
+                        || !predictedConfiguration.state.hasHead(predictedConfiguration.state.bufferHead()))
                     isTrueFeature = false;
             } else if (isPartial && action == 0) {
                 if (!predictedConfiguration.state.hasHead(predictedConfiguration.state.bufferHead()))
@@ -566,7 +588,7 @@ public class ArcEagerBeamTrainer {
 
             if (isTrueFeature) {   // if the made dependency is truely for the word
                 Object[] feats = FeatureExtractor.extractAllParseFeatures(predictedConfiguration, featureLength);
-                if (action != 2) // do not take into account for unshift
+                if (action != 2) { // do not take into account for unshift
                     for (int f = 0; f < feats.length; f++) {
                         Pair<Integer, Object> featName = new Pair<Integer, Object>(action, feats[f]);
                         HashMap<Pair<Integer, Object>, Float> map = (HashMap<Pair<Integer, Object>, Float>) predictedFeatures[f];
@@ -576,6 +598,7 @@ public class ArcEagerBeamTrainer {
                         else
                             map.put(featName, map.get(featName) + 1);
                     }
+                }
             }
 
             State state = predictedConfiguration.state;
@@ -640,11 +663,11 @@ public class ArcEagerBeamTrainer {
                 }
                 if (feat.second != null) {
                     Object feature = feat.second;
-                    if (!(map.containsKey(feat) && map.get(feat).equals(map2.get(feat))))
+                    if (!(map.containsKey(feat) && map.get(feat).equals(map2.get(feat)))) {
                         classifier.changeWeight(actionType, f, feature, dependency, map2.get(feat));
+                    }
                 }
             }
         }
     }
-
 }

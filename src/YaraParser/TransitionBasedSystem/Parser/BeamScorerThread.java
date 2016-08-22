@@ -6,6 +6,7 @@
 package YaraParser.TransitionBasedSystem.Parser;
 
 import YaraParser.Learning.AveragedPerceptron;
+import YaraParser.Structures.IndexMaps;
 import YaraParser.TransitionBasedSystem.Configuration.BeamElement;
 import YaraParser.TransitionBasedSystem.Configuration.Configuration;
 import YaraParser.TransitionBasedSystem.Configuration.State;
@@ -24,8 +25,12 @@ public class BeamScorerThread implements Callable<ArrayList<BeamElement>> {
     int featureLength;
     int b;
     boolean rootFirst;
+    IndexMaps maps;
+    boolean hasTypoFeatures;
 
-    public BeamScorerThread(boolean isDecode, AveragedPerceptron classifier, Configuration configuration, ArrayList<Integer> dependencyRelations, int featureLength, int b, boolean rootFirst) {
+    public BeamScorerThread(boolean isDecode, AveragedPerceptron classifier, Configuration configuration,
+                            ArrayList<Integer> dependencyRelations, int featureLength, int b, boolean rootFirst,
+                            IndexMaps maps) {
         this.isDecode = isDecode;
         this.classifier = classifier;
         this.configuration = configuration;
@@ -33,6 +38,7 @@ public class BeamScorerThread implements Callable<ArrayList<BeamElement>> {
         this.featureLength = featureLength;
         this.b = b;
         this.rootFirst = rootFirst;
+        this.maps = maps;
     }
 
 
@@ -57,7 +63,6 @@ public class BeamScorerThread implements Callable<ArrayList<BeamElement>> {
             float score = classifier.reduceScore(features, isDecode);
             float addedScore = score + prevScore;
             elements.add(new BeamElement(addedScore, b, 1, -1));
-
         }
 
         if (canRightArc) {

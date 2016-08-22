@@ -5,6 +5,21 @@ Yara Parser
 
 &copy; Licensed under the terms of the Apache License 2.0. See LICENSE file at the project root for terms.
 
+# Yara transfer parser
+This is a modification to the Yara parser for parser transfer. 
+ 
+## The main change
+The parser assumes that the training treebank can be from different languages. The third column shows the original word in that language and the second
+column shows the translation (use ``_'' for unknown translations). The trainer can get two Brown cluster dictionaries:
+
+-cluster [cluster-file] this cluster is cross-lingual and the parser looks at the third column.
+
+-cluster_id [cluster-file] this cluster is monolingual and the parser looks at the second column.
+
+###Citation: TBA
+
+
+# The original readme file (note that the cluster feature option is changed):
 
 # Yara K-Beam Arc-Eager Dependency Parser
 

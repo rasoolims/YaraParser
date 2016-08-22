@@ -26,6 +26,38 @@ public class FeatureExtractor {
             return extractExtendedFeaturesWithBrownClusters(configuration, length);
     }
 
+    public static int featureRichness(int index) {
+        assert index <= 198;
+
+        if (index <= 5)
+            return 1;
+        else if (index <= 11)
+            return 2;
+        else if (index <= 18)
+            return 1;
+        else if (index <= 19)
+            return 2;
+        else if (index <= 25)
+            return 3;
+        else if (index <= 36)
+            return 4;
+        else if (index <= 71)
+            return 5;
+        else if (index < 116)
+            return 1;
+        else if (index < 118)
+            return 2;
+        else if (index <= 149)
+            return 2;
+        else if (index <= 164)
+            return 1;
+        else if (index <= 166)
+            return 2;
+        else if (index <= 198)
+            return 3;
+
+        return 1;
+    }
 
     /**
      * Given a list of templates, extracts all features for the given state
@@ -319,6 +351,11 @@ public class FeatureExtractor {
         long distance = 0;
         if (s0Position > 0 && b0Position > 0)
             distance = Math.abs(b0Position - s0Position);
+        if (distance >= 5 && distance < 10)
+            distance = 5;
+        if (distance > 10)
+            distance = 10;
+
         if (s0w != 1) {
             featureMap[index++] = s0w | (distance << 20);
         } else {
@@ -724,9 +761,9 @@ public class FeatureExtractor {
 
         int[] words = sentence.getWords();
         int[] tags = sentence.getTags();
-        int[] bc4 = sentence.getBrownCluster4thPrefix();
-        int[] bc6 = sentence.getBrownCluster6thPrefix();
-        int[] bcf = sentence.getBrownClusterFullString();
+        int[] bc4 = sentence.getBrownCluster4thPrefix(true);
+        int[] bc6 = sentence.getBrownCluster6thPrefix(true);
+        int[] bcf = sentence.getBrownClusterFullString(true);
 
         if (0 < state.bufferSize()) {
             b0Position = state.bufferHead();
@@ -962,6 +999,11 @@ public class FeatureExtractor {
         long distance = 0;
         if (s0Position > 0 && b0Position > 0)
             distance = Math.abs(b0Position - s0Position);
+        if (distance >= 5 && distance < 10)
+            distance = 5;
+        if (distance > 10)
+            distance = 10;
+
         if (s0w != 1) {
             featureMap[index++] = s0w | (distance << 20);
         } else {
@@ -1120,7 +1162,7 @@ public class FeatureExtractor {
         long s0wbc4 = s0bc4;
         s0wbc4 |= (s0w << 12);
         if(s0w==0)
-            s0wbc4=0; 
+            s0wbc4 = 0;
         long s0wbc6 = s0bc6;
         s0wbc6 |= (s0w << 12);
         if(s0w==0)
@@ -1134,16 +1176,14 @@ public class FeatureExtractor {
          */
         if (s0bcf > 0) {
             if(s0w!=1){
-            featureMap[index++] = s0wbc4;
-            featureMap[index++] = s0wbc6;
+                featureMap[index++] = s0wbc4;
+                featureMap[index++] = s0wbc6;
             } else {
                 featureMap[index++] = null;
                 featureMap[index++] = null;
             }
             featureMap[index++] = s0bcfP;
-
             featureMap[index++] = s0bcf;
-
             featureMap[index++] = s0bc4;
             featureMap[index++] = s0bc6;
         } else {
@@ -1483,6 +1523,250 @@ public class FeatureExtractor {
             if (b0bcf > 0) {
                 featureMap[index++] = (s0bc4 << 20) | (b0bc4 << 8) | b0l1p;
                 featureMap[index++] = (s0bc6 << 20) | (b0bc6 << 8) | b0l1p;
+            } else {
+                featureMap[index++] = null;
+                featureMap[index++] = null;
+            }
+        } else {
+            featureMap[index++] = null;
+            featureMap[index++] = null;
+            featureMap[index++] = null;
+            featureMap[index++] = null;
+        }
+
+        /**
+         * * OOD cluster
+         */
+        long b0bc4_od = 0;
+        long b0bc6_od = 0;
+        long b0bcf_od = 0;
+        long s0bc4_od = 0;
+        long s0bc6_od = 0;
+        long s0bcf_od = 0;
+        int[] bc4_od = sentence.getBrownCluster4thPrefix(false);
+        int[] bc6_od = sentence.getBrownCluster6thPrefix(false);
+        int[] bcf_od = sentence.getBrownClusterFullString(false);
+
+        if (0 < state.bufferSize()) {
+            b0bc4_od = b0Position == 0 ? 0 : bc4_od[b0Position - 1];
+            b0bc4_od += 2;
+            b0bc6_od = b0Position == 0 ? 0 : bc6_od[b0Position - 1];
+            b0bc6_od += 2;
+            b0bcf_od = b0Position == 0 ? 0 : bcf_od[b0Position - 1];
+            b0bcf_od += 2;
+        }
+
+        if (0 < state.stackSize()) {
+            s0bc4_od = s0Position == 0 ? 0 : bc4_od[s0Position - 1];
+            s0bc4_od += 2;
+            s0bc6_od = s0Position == 0 ? 0 : bc6_od[s0Position - 1];
+            s0bc6_od += 2;
+            s0bcf_od = s0Position == 0 ? 0 : bcf_od[s0Position - 1];
+            s0bcf_od += 2;
+        }
+
+        /**
+         * Brown cluster features
+         * full string for b0w and s0w
+         * 4 and 6 prefix string for s0p and b0p
+         */
+        long b0bcfP_od = b0p;
+        b0bcfP_od |= (b0bcf_od << 8);
+        long s0bcfP_od = s0p;
+        s0bcfP_od |= (s0bcf_od << 8);
+
+        /**
+         * From single words
+         */
+        if (s0bcf_od > 0) {
+            featureMap[index++] = s0bcfP_od;
+            featureMap[index++] = s0bcf_od;
+            featureMap[index++] = s0bc4_od;
+            featureMap[index++] = s0bc6_od;
+        } else {
+            featureMap[index++] = null;
+            featureMap[index++] = null;
+            featureMap[index++] = null;
+            featureMap[index++] = null;
+        }
+
+        if (b0bcf_od > 0) {
+            featureMap[index++] = b0bcfP_od;
+            featureMap[index++] = b0bcf_od;
+            featureMap[index++] = b0bc4_od;
+            featureMap[index++] = b0bc6_od;
+        } else {
+            featureMap[index++] = null;
+            featureMap[index++] = null;
+            featureMap[index++] = null;
+            featureMap[index++] = null;
+        }
+
+
+        /**
+         * * from word pairs
+         */
+        if (s0bcf_od > 0) {
+            if (b0bcf_od > 0) {
+                featureMap[index++] = (s0bcf_od << 12) | b0bcf_od;
+            } else {
+                featureMap[index++] = null;
+            }
+        } else {
+            featureMap[index++] = null;
+        }
+
+        if (s0bcf_od > 0) {
+            featureMap[index++] = (s0bc4_od << 8) | b0p;
+            featureMap[index++] = (s0bc6_od << 8) | b0p;
+        } else {
+            featureMap[index++] = null;
+            featureMap[index++] = null;
+        }
+
+        if (b0bcf_od > 0) {
+            featureMap[index++] = (s0p << 12) | b0bc4_od;
+            featureMap[index++] = (s0p << 12) | b0bc6_od;
+
+            if (s0bcf_od > 0) {
+                featureMap[index++] = (s0bc4_od << 12) | b0bc4_od;
+                featureMap[index++] = (s0bc6_od << 12) | b0bc6_od;
+            } else {
+                featureMap[index++] = null;
+                featureMap[index++] = null;
+            }
+
+            featureMap[index++] = (b0bc4_od << 8) | b1p;
+            featureMap[index++] = (b0bc6_od << 8) | b1p;
+        } else {
+            featureMap[index++] = null;
+            featureMap[index++] = null;
+            featureMap[index++] = null;
+            featureMap[index++] = null;
+            featureMap[index++] = null;
+            featureMap[index++] = null;
+        }
+
+        /**
+         * from three words
+         */
+        if (b0bcf_od > 0) {
+            featureMap[index++] = (b0bc4_od << 16) | (b1p << 8) | b2p;
+            featureMap[index++] = (b0bc6_od << 16) | (b1p << 8) | b2p;
+
+            featureMap[index++] = (s0p << 20) | (b0bc4_od << 8) | b1p;
+            featureMap[index++] = (s0p << 20) | (b0bc6_od << 8) | b1p;
+        } else {
+            featureMap[index++] = null;
+            featureMap[index++] = null;
+            featureMap[index++] = null;
+            featureMap[index++] = null;
+        }
+
+        if (s0bcf_od > 0) {
+            featureMap[index++] = (s0bc4_od << 16) | (b2p << 8) | b1p;
+            featureMap[index++] = (s0bc6_od << 16) | (b2p << 8) | b1p;
+            if (b0bcf_od > 0) {
+                featureMap[index++] = (s0bc4_od << 20) | (b0bc4_od << 8) | b1p;
+                featureMap[index++] = (s0bc6_od << 20) | (b0bc6_od << 8) | b1p;
+            } else {
+                featureMap[index++] = null;
+                featureMap[index++] = null;
+            }
+
+            featureMap[index++] = (sh0p << 20) | (s0bc4_od << 8) | b0p;
+            featureMap[index++] = (sh0p << 20) | (s0bc6_od << 8) | b0p;
+        } else {
+            featureMap[index++] = null;
+            featureMap[index++] = null;
+            featureMap[index++] = null;
+            featureMap[index++] = null;
+            featureMap[index++] = null;
+            featureMap[index++] = null;
+        }
+
+        if (b0bcf_od > 0) {
+            featureMap[index++] = (sh0p << 20) | (s0p << 12) | b0bc4_od;
+            featureMap[index++] = (sh0p << 20) | (s0p << 12) | b0bc6_od;
+            if (s0bcf_od > 0) {
+                featureMap[index++] = (sh0p << 24) | (s0bc4_od << 12) | b0bc4_od;
+                featureMap[index++] = (sh0p << 24) | (s0bc6_od << 12) | b0bc6_od;
+            } else {
+                featureMap[index++] = null;
+                featureMap[index++] = null;
+            }
+        } else {
+            featureMap[index++] = null;
+            featureMap[index++] = null;
+            featureMap[index++] = null;
+            featureMap[index++] = null;
+        }
+
+
+        if (b0bcf_od > 0) {
+            featureMap[index++] = (s0p << 20) | (s0l1p << 12) | b0bc4_od;
+            featureMap[index++] = (s0p << 20) | (s0l1p << 12) | b0bc6_od;
+        } else {
+            featureMap[index++] = null;
+            featureMap[index++] = null;
+        }
+
+        if (s0bcf_od > 0) {
+            featureMap[index++] = (s0bc4_od << 16) | (s0l1p << 8) | b0p;
+            featureMap[index++] = (s0bc6_od << 16) | (s0l1p << 8) | b0p;
+            if (b0bcf_od > 0) {
+                featureMap[index++] = (s0bc4_od << 20) | (s0l1p << 12) | b0bc4_od;
+                featureMap[index++] = (s0bc6_od << 20) | (s0l1p << 12) | b0bc6_od;
+            } else {
+                featureMap[index++] = null;
+                featureMap[index++] = null;
+            }
+        } else {
+            featureMap[index++] = null;
+            featureMap[index++] = null;
+            featureMap[index++] = null;
+            featureMap[index++] = null;
+        }
+
+        if (b0bcf_od > 0) {
+            featureMap[index++] = (s0p << 20) | (s0r1p << 12) | b0bc4_od;
+            featureMap[index++] = (s0p << 20) | (s0r1p << 12) | b0bc6_od;
+        } else {
+            featureMap[index++] = null;
+            featureMap[index++] = null;
+        }
+
+        if (s0bcf_od > 0) {
+            featureMap[index++] = (s0bc4_od << 16) | (s0r1p << 8) | b0p;
+            featureMap[index++] = (s0bc6_od << 16) | (s0r1p << 8) | b0p;
+            if (b0bcf_od > 0) {
+                featureMap[index++] = (s0bc4_od << 20) | (s0r1p << 12) | b0bc4_od;
+                featureMap[index++] = (s0bc6_od << 20) | (s0r1p << 12) | b0bc6_od;
+            } else {
+                featureMap[index++] = null;
+                featureMap[index++] = null;
+            }
+        } else {
+            featureMap[index++] = null;
+            featureMap[index++] = null;
+            featureMap[index++] = null;
+            featureMap[index++] = null;
+        }
+
+        if (b0bcf_od > 0) {
+            featureMap[index++] = (s0p << 20) | (b0bc4_od << 8) | b0l1p;
+            featureMap[index++] = (s0p << 20) | (b0bc6_od << 8) | b0l1p;
+        } else {
+            featureMap[index++] = null;
+            featureMap[index++] = null;
+        }
+
+        if (s0bcf_od > 0) {
+            featureMap[index++] = (s0bc4_od << 16) | (b0p << 8) | b0l1p;
+            featureMap[index++] = (s0bc6_od << 16) | (b0p << 8) | b0l1p;
+            if (b0bcf_od > 0) {
+                featureMap[index++] = (s0bc4_od << 20) | (b0bc4_od << 8) | b0l1p;
+                featureMap[index++] = (s0bc6_od << 20) | (b0bc6_od << 8) | b0l1p;
             } else {
                 featureMap[index++] = null;
                 featureMap[index++] = null;

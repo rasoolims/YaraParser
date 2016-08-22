@@ -8,6 +8,7 @@ package YaraParser.TransitionBasedSystem.Parser;
 
 import YaraParser.Accessories.Pair;
 import YaraParser.Learning.AveragedPerceptron;
+import YaraParser.Structures.IndexMaps;
 import YaraParser.Structures.Sentence;
 import YaraParser.TransitionBasedSystem.Configuration.BeamElement;
 import YaraParser.TransitionBasedSystem.Configuration.Configuration;
@@ -31,12 +32,12 @@ public class ParseThread implements Callable<Pair<Configuration, Integer>> {
     int beamWidth;
     GoldConfiguration goldConfiguration;
     boolean partial;
-
+    IndexMaps maps;
     int id;
 
     public ParseThread(int id, AveragedPerceptron classifier, ArrayList<Integer> dependencyRelations, int featureLength,
                        Sentence sentence,
-                       boolean rootFirst, int beamWidth, GoldConfiguration goldConfiguration, boolean partial) {
+                       boolean rootFirst, int beamWidth, GoldConfiguration goldConfiguration, boolean partial, IndexMaps maps) {
         this.id = id;
         this.classifier = classifier;
         this.dependencyRelations = dependencyRelations;
@@ -46,6 +47,7 @@ public class ParseThread implements Callable<Pair<Configuration, Integer>> {
         this.beamWidth = beamWidth;
         this.goldConfiguration = goldConfiguration;
         this.partial = partial;
+        this.maps = maps;
     }
 
     @Override
@@ -56,7 +58,8 @@ public class ParseThread implements Callable<Pair<Configuration, Integer>> {
     }
 
     Pair<Configuration, Integer> parse() throws Exception {
-        Configuration initialConfiguration = new Configuration(sentence, rootFirst);
+        Configuration initialConfiguration = new Configuration(sentence, rootFirst, goldConfiguration.getLanguageId());
+        int[] tags = goldConfiguration.getSentence().getTags();
 
         ArrayList<Configuration> beam = new ArrayList<Configuration>(beamWidth);
         beam.add(initialConfiguration);
@@ -254,7 +257,7 @@ public class ParseThread implements Callable<Pair<Configuration, Integer>> {
     }
 
     public Configuration parsePartial() throws Exception {
-        Configuration initialConfiguration = new Configuration(sentence, rootFirst);
+        Configuration initialConfiguration = new Configuration(sentence, rootFirst, goldConfiguration.getLanguageId());
         boolean isNonProjective = false;
         if (goldConfiguration.isNonprojective()) {
             isNonProjective = true;

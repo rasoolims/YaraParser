@@ -52,6 +52,9 @@ public class ParseTaggedThread implements Callable<Pair<String, Integer>> {
         ArrayList<Integer> brownCluster4thPrefix=new ArrayList<Integer>();
         ArrayList<Integer> brownCluster6thPrefix=new ArrayList<Integer>();
         ArrayList<Integer> brownClusterFullString =new ArrayList<Integer>();
+        ArrayList<Integer> brownCluster4thPrefixInDomain = new ArrayList<Integer>();
+        ArrayList<Integer> brownCluster6thPrefixInDomain = new ArrayList<Integer>();
+        ArrayList<Integer> brownClusterFullStringInDomain = new ArrayList<Integer>();
 
         int i = 0;
         for (String w : wrds) {
@@ -72,10 +75,15 @@ public class ParseTaggedThread implements Callable<Pair<String, Integer>> {
             int pi = -1;
             if (wordMap.containsKey(pos))
                 pi = wordMap.get(pos);
-            int[] clusters=maps.clusterId(word);
+            int[] clusters = maps.clusterId(word, false);
             brownClusterFullString.add(clusters[0]);
             brownCluster4thPrefix.add(clusters[1]);
             brownCluster6thPrefix.add(clusters[2]);
+
+            int[] clustersId = maps.clusterId(word, true);
+            brownClusterFullStringInDomain.add(clustersId[0]);
+            brownCluster4thPrefixInDomain.add(clustersId[1]);
+            brownCluster6thPrefixInDomain.add(clustersId[2]);
 
             tokens.add(wi);
             tags.add(pi);
@@ -90,8 +98,9 @@ public class ParseTaggedThread implements Callable<Pair<String, Integer>> {
                 brownCluster6thPrefix.add(0);
             }
 
-            Sentence sentence = new Sentence(tokens, tags,brownCluster4thPrefix,brownCluster6thPrefix,brownClusterFullString);
-            Configuration bestParse = parser.parse(sentence, rootFirst, beamWidth, 1);
+            Sentence sentence = new Sentence(tokens, null, tags, brownCluster4thPrefix, brownCluster6thPrefix, brownClusterFullString,
+                    brownCluster4thPrefixInDomain, brownCluster6thPrefixInDomain, brownClusterFullStringInDomain);
+            Configuration bestParse = parser.parse(sentence, rootFirst, beamWidth, 1, "");
 
             StringBuilder finalOutput = new StringBuilder();
             for (i = 0; i < words.length; i++) {

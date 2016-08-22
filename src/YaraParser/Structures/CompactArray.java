@@ -19,6 +19,12 @@ public class CompactArray implements Serializable {
         this.array = array;
     }
 
+    public float getValue(int index) {
+        if (index < offset + array.length && index >= offset)
+            return array[index - offset];
+        return 0;
+    }
+
     public void expandArray(int index, float value) {
         if (index < offset + array.length && index >= offset) {
             array[index - offset] += value;

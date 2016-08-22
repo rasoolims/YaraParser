@@ -13,7 +13,9 @@ import YaraParser.TransitionBasedSystem.Configuration.GoldConfiguration;
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.Random;
 
 public class CoNLLReader {
     /**
@@ -31,12 +33,16 @@ public class CoNLLReader {
         fileReader = new BufferedReader(new FileReader(filePath));
     }
 
-    public static IndexMaps createIndices(String filePath, boolean labeled, boolean lowercased, String clusterFile) throws Exception {
+    public static IndexMaps createIndices(String filePath, boolean labeled, boolean lowercased, String clusterFile, String clusterInDomainFile)
+            throws Exception {
         HashMap<String, Integer> wordMap = new HashMap<String, Integer>();
         HashMap<Integer, Integer> labels = new HashMap<Integer, Integer>();
         HashMap<String, Integer> clusterMap = new HashMap<String, Integer>();
         HashMap<Integer, Integer> cluster4Map = new HashMap<Integer, Integer>();
         HashMap<Integer, Integer> cluster6Map = new HashMap<Integer, Integer>();
+        HashMap<String, Integer> clusterMapInDomain = new HashMap<String, Integer>();
+        HashMap<Integer, Integer> cluster4MapInDomain = new HashMap<Integer, Integer>();
+        HashMap<Integer, Integer> cluster6MapInDomain = new HashMap<Integer, Integer>();
 
         int labelCount = 1;
         String rootString = "ROOT";
@@ -81,9 +87,10 @@ public class CoNLLReader {
             reader = new BufferedReader(new FileReader(clusterFile));
             while ((line = reader.readLine()) != null) {
                 String[] spl = line.trim().split("\t");
-                if (spl.length > 2) {
+                if (spl.length >= 2) {
                     String cluster = spl[0];
                     String word = spl[1];
+
                     String prefix4 = cluster.substring(0, Math.min(4, cluster.length()));
                     String prefix6 = cluster.substring(0, Math.min(6, cluster.length()));
                     int clusterNum = wi;
@@ -116,6 +123,46 @@ public class CoNLLReader {
             }
         }
 
+        if (clusterInDomainFile.length() > 0) {
+            reader = new BufferedReader(new FileReader(clusterInDomainFile));
+            while ((line = reader.readLine()) != null) {
+                String[] spl = line.trim().split("\t");
+                if (spl.length > 2) {
+                    String cluster = spl[0];
+                    String word = spl[1];
+
+                    String prefix4 = cluster.substring(0, Math.min(4, cluster.length()));
+                    String prefix6 = cluster.substring(0, Math.min(6, cluster.length()));
+                    int clusterNum = wi;
+
+                    if (!wordMap.containsKey(cluster)) {
+                        clusterMapInDomain.put(word, wi);
+                        wordMap.put(cluster, wi++);
+                    } else {
+                        clusterNum = wordMap.get(cluster);
+                        clusterMapInDomain.put(word, clusterNum);
+                    }
+
+                    int pref4Id = wi;
+                    if (!wordMap.containsKey(prefix4)) {
+                        wordMap.put(prefix4, wi++);
+                    } else {
+                        pref4Id = wordMap.get(prefix4);
+                    }
+
+                    int pref6Id = wi;
+                    if (!wordMap.containsKey(prefix6)) {
+                        wordMap.put(prefix6, wi++);
+                    } else {
+                        pref6Id = wordMap.get(prefix6);
+                    }
+
+                    cluster4MapInDomain.put(clusterNum, pref4Id);
+                    cluster6MapInDomain.put(clusterNum, pref6Id);
+                }
+            }
+        }
+
         reader = new BufferedReader(new FileReader(filePath));
         while ((line = reader.readLine()) != null) {
             String[] spl = line.trim().split("\t");
@@ -123,30 +170,39 @@ public class CoNLLReader {
                 String word = spl[1];
                 if (lowercased)
                     word = word.toLowerCase();
-                if (!wordMap.containsKey(word)) {
+                if (!wordMap.containsKey(word) && !word.equals("_")) {
                     wordMap.put(word, wi++);
                 }
             }
         }
 
-        return new IndexMaps(wordMap, labels, rootString, cluster4Map, cluster6Map, clusterMap);
+        System.out.println("OOD cluster words#: " + clusterMap.size());
+        System.out.println("ID cluster words#: " + clusterMapInDomain.size());
+        return new IndexMaps(wordMap, labels, rootString, cluster4Map, cluster6Map, clusterMap, cluster4MapInDomain, cluster6MapInDomain,
+                clusterMapInDomain);
     }
 
     /**
      * @param limit it is used if we want to read part of the data
      * @return
      */
-    public ArrayList<GoldConfiguration> readData(int limit, boolean keepNonProjective, boolean labeled, boolean rootFirst, boolean lowerCased, IndexMaps maps) throws Exception {
+    public ArrayList<GoldConfiguration> readData(int limit, boolean keepNonProjective, boolean labeled, boolean rootFirst, boolean lowerCased,
+                                                 IndexMaps maps, boolean shuffle) throws Exception {
         HashMap<String, Integer> wordMap = maps.getWordMap();
         ArrayList<GoldConfiguration> configurationSet = new ArrayList<GoldConfiguration>();
 
         String line;
         ArrayList<Integer> tokens = new ArrayList<Integer>();
+        ArrayList<String> lemmas = new ArrayList<String>();
         ArrayList<Integer> tags = new ArrayList<Integer>();
         ArrayList<Integer> cluster4Ids = new ArrayList<Integer>();
         ArrayList<Integer> cluster6Ids = new ArrayList<Integer>();
         ArrayList<Integer> clusterIds = new ArrayList<Integer>();
-
+        ArrayList<Integer> cluster4IdsInDomain = new ArrayList<Integer>();
+        ArrayList<Integer> cluster6IdsInDomain = new ArrayList<Integer>();
+        ArrayList<Integer> clusterIdsInDomain = new ArrayList<Integer>();
+        String langId = "";
+        int updateWeight = 1;
         HashMap<Integer, Pair<Integer, Integer>> goldDependencies = new HashMap<Integer, Pair<Integer, Integer>>();
         int sentenceCounter = 0;
         while ((line = fileReader.readLine()) != null) {
@@ -161,20 +217,29 @@ public class CoNLLReader {
                         }
                         tokens.add(0);
                         tags.add(0);
+                        lemmas.add("ROOT");
                         cluster4Ids.add(0);
                         cluster6Ids.add(0);
                         clusterIds.add(0);
+                        cluster4IdsInDomain.add(0);
+                        cluster6IdsInDomain.add(0);
+                        clusterIdsInDomain.add(0);
                     }
-                    Sentence currentSentence = new Sentence(tokens, tags, cluster4Ids, cluster6Ids, clusterIds);
-                    GoldConfiguration goldConfiguration = new GoldConfiguration(currentSentence, goldDependencies);
+                    Sentence currentSentence = new Sentence(tokens, lemmas, tags, cluster4Ids, cluster6Ids, clusterIds, cluster4IdsInDomain,
+                            cluster6IdsInDomain, clusterIdsInDomain);
+                    GoldConfiguration goldConfiguration = new GoldConfiguration(currentSentence, goldDependencies, updateWeight, langId);
                     if (keepNonProjective || !goldConfiguration.isNonprojective())
                         configurationSet.add(goldConfiguration);
                     goldDependencies = new HashMap<Integer, Pair<Integer, Integer>>();
                     tokens = new ArrayList<Integer>();
                     tags = new ArrayList<Integer>();
+                    lemmas = new ArrayList<String>();
                     cluster4Ids = new ArrayList<Integer>();
                     cluster6Ids = new ArrayList<Integer>();
                     clusterIds = new ArrayList<Integer>();
+                    cluster4IdsInDomain = new ArrayList<Integer>();
+                    cluster6IdsInDomain = new ArrayList<Integer>();
+                    clusterIdsInDomain = new ArrayList<Integer>();
                 } else {
                     goldDependencies = new HashMap<Integer, Pair<Integer, Integer>>();
                     tokens = new ArrayList<Integer>();
@@ -182,6 +247,9 @@ public class CoNLLReader {
                     cluster4Ids = new ArrayList<Integer>();
                     cluster6Ids = new ArrayList<Integer>();
                     clusterIds = new ArrayList<Integer>();
+                    cluster4IdsInDomain = new ArrayList<Integer>();
+                    cluster6IdsInDomain = new ArrayList<Integer>();
+                    clusterIdsInDomain = new ArrayList<Integer>();
                 }
                 if (sentenceCounter >= limit) {
                     System.out.println("buffer full..." + configurationSet.size());
@@ -191,14 +259,25 @@ public class CoNLLReader {
                 String[] splitLine = line.split("\t");
                 if (splitLine.length < 8)
                     throw new Exception("wrong file format");
+                if (splitLine.length >= 8) {
+                    try {
+                        updateWeight = Integer.parseInt(splitLine[8]);
+                    } catch (Exception ex) {
+                        updateWeight = 1;
+                    }
+                } else {
+                    updateWeight = 1;
+                }
                 int wordIndex = Integer.parseInt(splitLine[0]);
                 String word = splitLine[1].trim();
+                String lemma = splitLine[2].trim();
                 if (lowerCased)
                     word = word.toLowerCase();
                 String pos = splitLine[3].trim();
+                langId = splitLine[5].trim();
 
                 int wi = -1;
-                if (wordMap.containsKey(word))
+                if (wordMap.containsKey(word) && !word.equals("_"))
                     wi = wordMap.get(word);
 
                 int pi = -1;
@@ -207,6 +286,7 @@ public class CoNLLReader {
 
                 tags.add(pi);
                 tokens.add(wi);
+                lemmas.add(word);
 
                 int headIndex = Integer.parseInt(splitLine[6]);
                 String relation = splitLine[7];
@@ -224,10 +304,15 @@ public class CoNLLReader {
                 if (headIndex == -1)
                     ri = -1;
 
-                int[] ids = maps.clusterId(word);
+                int[] ids = maps.clusterId(lemma, false);
                 clusterIds.add(ids[0]);
                 cluster4Ids.add(ids[1]);
                 cluster6Ids.add(ids[2]);
+
+                int[] idsInDomain = maps.clusterId(word, true);
+                clusterIdsInDomain.add(idsInDomain[0]);
+                cluster4IdsInDomain.add(idsInDomain[1]);
+                cluster6IdsInDomain.add(idsInDomain[2]);
 
                 if (headIndex >= 0)
                     goldDependencies.put(wordIndex, new Pair<Integer, Integer>(headIndex, ri));
@@ -241,15 +326,21 @@ public class CoNLLReader {
                 }
                 tokens.add(0);
                 tags.add(0);
+                lemmas.add("ROOT");
                 cluster4Ids.add(0);
                 cluster6Ids.add(0);
                 clusterIds.add(0);
+                cluster4IdsInDomain.add(0);
+                cluster6IdsInDomain.add(0);
+                clusterIdsInDomain.add(0);
             }
             sentenceCounter++;
-            Sentence currentSentence = new Sentence(tokens, tags, cluster4Ids, cluster6Ids, clusterIds);
-            configurationSet.add(new GoldConfiguration(currentSentence, goldDependencies));
+            Sentence currentSentence = new Sentence(tokens, lemmas, tags, cluster4Ids, cluster6Ids, clusterIds, cluster4IdsInDomain,
+                    cluster6IdsInDomain, clusterIdsInDomain);
+            configurationSet.add(new GoldConfiguration(currentSentence, goldDependencies, updateWeight, langId));
         }
-
+        if (shuffle)
+            Collections.shuffle(configurationSet, new Random());
         return configurationSet;
     }
 

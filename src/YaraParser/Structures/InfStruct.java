@@ -23,22 +23,9 @@ public class InfStruct {
     public HashMap<Object, CompactArray>[] leftArcFeatureAveragedWeights;
     public HashMap<Object, CompactArray>[] rightArcFeatureAveragedWeights;
     public int dependencySize;
-
     public IndexMaps maps;
     public ArrayList<Integer> dependencyLabels;
     public Options options;
-
-    public InfStruct(HashMap<Object, Float>[] shiftFeatureAveragedWeights, HashMap<Object, Float>[] reduceFeatureAveragedWeights, HashMap<Object, CompactArray>[] leftArcFeatureAveragedWeights, HashMap<Object, CompactArray>[] rightArcFeatureAveragedWeights,
-                     IndexMaps maps, ArrayList<Integer> dependencyLabels, Options options, int dependencySize) {
-        this.shiftFeatureAveragedWeights = shiftFeatureAveragedWeights;
-        this.reduceFeatureAveragedWeights = reduceFeatureAveragedWeights;
-        this.leftArcFeatureAveragedWeights = leftArcFeatureAveragedWeights;
-        this.rightArcFeatureAveragedWeights = rightArcFeatureAveragedWeights;
-        this.maps = maps;
-        this.dependencyLabels = dependencyLabels;
-        this.options = options;
-        this.dependencySize = dependencySize;
-    }
 
     public InfStruct(AveragedPerceptron perceptron, IndexMaps maps, ArrayList<Integer> dependencyLabels, Options options) {
         shiftFeatureAveragedWeights = new HashMap[perceptron.shiftFeatureAveragedWeights.length];
@@ -47,7 +34,6 @@ public class InfStruct {
         HashMap<Object, Float>[] map = perceptron.shiftFeatureWeights;
         HashMap<Object, Float>[] avgMap = perceptron.shiftFeatureAveragedWeights;
         this.dependencySize = perceptron.dependencySize;
-
         for (int i = 0; i < shiftFeatureAveragedWeights.length; i++) {
             shiftFeatureAveragedWeights[i] = new HashMap<Object, Float>();
             for (Object feat : map[i].keySet()) {
@@ -61,7 +47,6 @@ public class InfStruct {
         HashMap<Object, Float>[] map4 = perceptron.reduceFeatureWeights;
         HashMap<Object, Float>[] avgMap4 = perceptron.reduceFeatureAveragedWeights;
         this.dependencySize = perceptron.dependencySize;
-
         for (int i = 0; i < reduceFeatureAveragedWeights.length; i++) {
             reduceFeatureAveragedWeights[i] = new HashMap<Object, Float>();
             for (Object feat : map4[i].keySet()) {
@@ -71,11 +56,9 @@ public class InfStruct {
                 reduceFeatureAveragedWeights[i].put(feat, newVals);
             }
         }
-
         leftArcFeatureAveragedWeights = new HashMap[perceptron.leftArcFeatureAveragedWeights.length];
         HashMap<Object, CompactArray>[] map2 = perceptron.leftArcFeatureWeights;
         HashMap<Object, CompactArray>[] avgMap2 = perceptron.leftArcFeatureAveragedWeights;
-
         for (int i = 0; i < leftArcFeatureAveragedWeights.length; i++) {
             leftArcFeatureAveragedWeights[i] = new HashMap<Object, CompactArray>();
             for (Object feat : map2[i].keySet()) {
@@ -88,7 +71,6 @@ public class InfStruct {
         rightArcFeatureAveragedWeights = new HashMap[perceptron.rightArcFeatureAveragedWeights.length];
         HashMap<Object, CompactArray>[] map3 = perceptron.rightArcFeatureWeights;
         HashMap<Object, CompactArray>[] avgMap3 = perceptron.rightArcFeatureAveragedWeights;
-
         for (int i = 0; i < rightArcFeatureAveragedWeights.length; i++) {
             rightArcFeatureAveragedWeights[i] = new HashMap<Object, CompactArray>();
             for (Object feat : map3[i].keySet()) {
