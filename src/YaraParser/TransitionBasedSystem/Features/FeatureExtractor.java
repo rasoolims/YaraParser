@@ -26,39 +26,6 @@ public class FeatureExtractor {
             return extractExtendedFeaturesWithBrownClusters(configuration, length);
     }
 
-    public static int featureRichness(int index) {
-        assert index <= 198;
-
-        if (index <= 5)
-            return 1;
-        else if (index <= 11)
-            return 2;
-        else if (index <= 18)
-            return 1;
-        else if (index <= 19)
-            return 2;
-        else if (index <= 25)
-            return 3;
-        else if (index <= 36)
-            return 4;
-        else if (index <= 71)
-            return 5;
-        else if (index < 116)
-            return 1;
-        else if (index < 118)
-            return 2;
-        else if (index <= 149)
-            return 2;
-        else if (index <= 164)
-            return 1;
-        else if (index <= 166)
-            return 2;
-        else if (index <= 198)
-            return 3;
-
-        return 1;
-    }
-
     /**
      * Given a list of templates, extracts all features for the given state
      *
