@@ -16,7 +16,9 @@ column shows the translation (use ``_'' for unknown translations). The trainer c
 
 -cluster_id [cluster-file] this cluster is monolingual and the parser looks at the second column.
 
-### Citation: Mohammad Sadegh Rasooli and Michael Collins. "Cross-Lingual Syntactic Transfer with Limited Resources", in press.
+## Citation: 
+
+* Mohammad Sadegh Rasooli and Michael Collins. "Cross-Lingual Syntactic Transfer with Limited Resources", in press.
 
 
 # The original readme file (note that the cluster feature option is changed):
