@@ -1,7 +1,7 @@
 Yara Parser
 ===================
 
-&copy; Copyright 2014-2016, Yahoo! Inc.
+&copy; Copyright 2014-2015, Yahoo! Inc; 2015-2016 Mohammad Sadegh Rasooli.
 
 &copy; Licensed under the terms of the Apache License 2.0. See LICENSE file at the project root for terms.
 
@@ -16,7 +16,7 @@ column shows the translation (use ``_'' for unknown translations). The trainer c
 
 -cluster_id [cluster-file] this cluster is monolingual and the parser looks at the second column.
 
-###Citation: TBA
+### Citation: Mohammad Sadegh Rasooli and Michael Collins. "Cross-Lingual Syntactic Transfer with Limited Resources", in press.
 
 
 # The original readme file (note that the cluster feature option is changed):
